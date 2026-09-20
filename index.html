@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circuit Explorer: Open vs. Closed</title>
+<style>
+  :root {
+    --navy: #0F2740;
+    --navy-deep: #0A1D33;
+    --grid-line: rgba(139, 196, 255, 0.09);
+    --wire-off: #5C7A99;
+    --wire-on: #FFB454;
+    --led-off-fill: #1B3346;
+    --led-off-stroke: #4A6580;
+    --led-on-fill: #FF6B4A;
+    --glow: #FF8F5E;
+    --text-bright: #EAF2FB;
+    --text-muted: #9FB6CC;
+    --text-dim: #6E88A3;
+    --amber: #FFB454;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px 16px;
+    background: transparent;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 640px;
+    background: linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
+    border-radius: 14px;
+    padding: 32px 28px 28px;
+    box-shadow: 0 12px 32px rgba(10, 29, 51, 0.35);
+    background-image:
+      linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%),
+      repeating-linear-gradient(0deg, var(--grid-line) 0 1px, transparent 1px 32px),
+      repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 32px);
+    background-blend-mode: normal, screen, screen;
+  }
+
+  h1 {
+    color: var(--text-bright);
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 0 0 6px;
+    letter-spacing: 0.01em;
+  }
+
+  .intro {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin: 0 0 22px;
+    max-width: 52ch;
+  }
+
+  .diagram-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 18px;
+  }
+
+  svg {
+    width: 100%;
+    max-width: 560px;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+
+  .wire {
+    fill: none;
+    stroke: var(--wire-off);
+    stroke-width: 4;
+    stroke-linejoin: round;
+    transition: stroke 0.35s ease;
+  }
+  .wire.energized { stroke: var(--wire-on); }
+
+  .current-dot {
+    fill: var(--wire-on);
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    filter: drop-shadow(0 0 4px rgba(255, 180, 84, 0.9));
+  }
+  .current-dot.flowing { opacity: 1; }
+
+  .battery-line { stroke: var(--text-muted); stroke-width: 4; stroke-linecap: round; }
+  .battery-line.thick { stroke-width: 7; }
+  .battery-label {
+    fill: var(--text-muted);
+    font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+
+  .led-shape { fill: var(--led-off-fill); stroke: var(--led-off-stroke); stroke-width: 2.5; transition: fill 0.35s ease, stroke 0.35s ease; }
+  .led-bar { stroke: var(--led-off-stroke); stroke-width: 3.5; transition: stroke 0.35s ease; }
+  .led-on .led-shape { fill: var(--led-on-fill); stroke: var(--glow); }
+  .led-on .led-bar { stroke: var(--glow); }
+  .led-glow { opacity: 0; transition: opacity 0.4s ease; }
+  .led-on .led-glow { opacity: 1; }
+  .light-ray { stroke: var(--glow); stroke-width: 2.5; stroke-linecap: round; opacity: 0; transition: opacity 0.4s ease; }
+  .led-on .light-ray { opacity: 1; }
+  .component-label {
+    fill: var(--text-dim);
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+
+  .switch-group { cursor: pointer; }
+  .switch-group:focus-visible .switch-hit { outline: 2px solid var(--amber); outline-offset: 4px; }
+  .switch-hit { fill: transparent; }
+  .switch-pin { fill: var(--text-muted); }
+  .switch-lever {
+    stroke: var(--text-bright);
+    stroke-width: 4.5;
+    stroke-linecap: round;
+    transform-origin: 500px 182px;
+    transition: transform 0.3s cubic-bezier(0.34, 1.4, 0.64, 1);
+  }
+  .switch-lever.open { transform: rotate(-32deg); }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+
+  button#toggleBtn {
+    background: var(--amber);
+    color: #14202E;
+    border: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  button#toggleBtn:hover { box-shadow: 0 4px 14px rgba(255, 180, 84, 0.35); }
+  button#toggleBtn:active { transform: scale(0.97); }
+  button#toggleBtn:focus-visible { outline: 2px solid var(--text-bright); outline-offset: 3px; }
+
+  .status {
+    color: var(--text-bright);
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+  .status .state-open { color: var(--text-muted); }
+  .status .state-closed { color: var(--amber); }
+
+  .try-this {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(159, 182, 204, 0.2);
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+  .try-this strong { color: var(--text-bright); }
+
+  @media (max-width: 420px) {
+    .card { padding: 22px 18px 20px; }
+    h1 { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>Open or closed?</h1>
+  <p class="intro">Toggle the switch below to open or close the circuit, and watch what happens to the current and the LED.</p>
+
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 600 300" role="img" aria-labelledby="circuitTitle">
+      <title id="circuitTitle">A circuit diagram with a battery, an LED, and a toggle switch</title>
+
+      <!-- Base loop wire -->
+      <path id="loopPath" class="wire"
+        d="M100,240 L100,80 L500,80 L500,240 L100,240" />
+
+      <!-- Moving current dots (travel the same loop path) -->
+      <g id="currentDots">
+        <circle class="current-dot" r="5">
+          <animateMotion dur="2.6s" repeatCount="indefinite" begin="0s"
+            path="M100,240 L100,80 L500,80 L500,240 L100,240" />
+        </circle>
+        <circle class="current-dot" r="5">
+          <animateMotion dur="2.6s" repeatCount="indefinite" begin="0.65s"
+            path="M100,240 L100,80 L500,80 L500,240 L100,240" />
+        </circle>
+        <circle class="current-dot" r="5">
+          <animateMotion dur="2.6s" repeatCount="indefinite" begin="1.3s"
+            path="M100,240 L100,80 L500,80 L500,240 L100,240" />
+        </circle>
+        <circle class="current-dot" r="5">
+          <animateMotion dur="2.6s" repeatCount="indefinite" begin="1.95s"
+            path="M100,240 L100,80 L500,80 L500,240 L100,240" />
+        </circle>
+      </g>
+
+      <!-- Battery, on the left edge -->
+      <g>
+        <line class="battery-line" x1="80" y1="145" x2="120" y2="145" />
+        <line class="battery-line thick" x1="85" y1="175" x2="115" y2="175" />
+        <text class="battery-label" x="130" y="150">+3V</text>
+        <text class="battery-label" x="130" y="180">GND</text>
+        <text class="component-label" x="52" y="165">Battery</text>
+      </g>
+
+      <!-- LED, centered on the top edge -->
+      <g id="ledGroup">
+        <circle class="led-glow" cx="300" cy="80" r="26" fill="url(#glowGrad)" />
+        <polygon class="led-shape" points="278,68 278,92 302,80" />
+        <line class="led-bar" x1="302" y1="66" x2="302" y2="94" />
+        <line class="light-ray" x1="308" y1="62" x2="318" y2="52" />
+        <line class="light-ray" x1="314" y1="70" x2="326" y2="64" />
+        <text class="component-label" x="272" y="46">LED</text>
+      </g>
+
+      <!-- Switch, centered on the right edge -->
+      <g id="switchGroup" class="switch-group" tabindex="0" role="button"
+         aria-pressed="false" aria-label="Toggle the switch">
+        <rect class="switch-hit" x="465" y="150" width="70" height="65" />
+        <circle class="switch-pin" cx="500" cy="140" r="5" />
+        <circle class="switch-pin" cx="500" cy="182" r="5" />
+        <line id="switchLever" class="switch-lever open" x1="500" y1="182" x2="500" y2="140" />
+        <text class="component-label" x="512" y="165">Switch</text>
+      </g>
+
+      <defs>
+        <radialGradient id="glowGrad">
+          <stop offset="0%" stop-color="#FF8F5E" stop-opacity="0.85" />
+          <stop offset="100%" stop-color="#FF8F5E" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+    </svg>
+  </div>
+
+  <div class="controls">
+    <button id="toggleBtn" type="button">Close the switch</button>
+    <p class="status" id="statusText" aria-live="polite">
+      Circuit: <span class="state-open">OPEN</span> — no current is flowing
+    </p>
+  </div>
+
+  <p class="try-this"><strong>Try this:</strong> Toggle the switch a few times. What has to happen, physically, for the LED to light up? What does that tell you about how your capacitive touch and tilt switches will work later in this course?</p>
+</div>
+
+<script>
+  const toggleBtn = document.getElementById('toggleBtn');
+  const switchGroup = document.getElementById('switchGroup');
+  const switchLever = document.getElementById('switchLever');
+  const loopPath = document.getElementById('loopPath');
+  const currentDots = document.querySelectorAll('.current-dot');
+  const ledGroup = document.getElementById('ledGroup');
+  const statusText = document.getElementById('statusText');
+
+  let closed = false;
+
+  function render() {
+    switchLever.classList.toggle('open', !closed);
+    loopPath.classList.toggle('energized', closed);
+    currentDots.forEach(d => d.classList.toggle('flowing', closed));
+    ledGroup.classList.toggle('led-on', closed);
+    switchGroup.setAttribute('aria-pressed', String(closed));
+    toggleBtn.textContent = closed ? 'Open the switch' : 'Close the switch';
+
+    statusText.innerHTML = closed
+      ? 'Circuit: <span class="state-closed">CLOSED</span> — current is flowing, and the LED lights up!'
+      : 'Circuit: <span class="state-open">OPEN</span> — no current is flowing';
+  }
+
+  function toggle() {
+    closed = !closed;
+    render();
+  }
+
+  toggleBtn.addEventListener('click', toggle);
+  switchGroup.addEventListener('click', toggle);
+  switchGroup.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggle();
+    }
+  });
+
+  render();
+</script>
+
+</body>
+</html>
