@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Touch Explorer: Sensing Without a Switch</title>
+<style>
+  :root {
+    --navy: #0F2740;
+    --navy-deep: #0A1D33;
+    --grid-line: rgba(139, 196, 255, 0.09);
+    --wire-off: #5C7A99;
+    --pad-off-fill: #1B3346;
+    --pad-off-stroke: #4A6580;
+    --pad-on-fill: #FF6B4A;
+    --glow: #FF8F5E;
+    --text-bright: #EAF2FB;
+    --text-muted: #9FB6CC;
+    --text-dim: #6E88A3;
+    --amber: #FFB454;
+    --page-bg: #F3F6FA;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 32px 16px;
+    background: var(--page-bg);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+  }
+
+  .page {
+    width: 100%;
+    max-width: 640px;
+  }
+
+  h1 {
+    color: #14202E;
+    font-size: 1.4rem;
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+
+  .intro {
+    color: #4A5A6B;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin: 0 0 20px;
+    max-width: 56ch;
+  }
+
+  .card {
+    background: linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%);
+    background-image:
+      linear-gradient(180deg, var(--navy) 0%, var(--navy-deep) 100%),
+      repeating-linear-gradient(0deg, var(--grid-line) 0 1px, transparent 1px 32px),
+      repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 32px);
+    background-blend-mode: normal, screen, screen;
+    border-radius: 14px;
+    padding: 30px 28px 26px;
+    box-shadow: 0 12px 32px rgba(10, 29, 51, 0.35);
+  }
+
+  .diagram-wrap {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 8px;
+  }
+
+  svg {
+    width: 100%;
+    max-width: 560px;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+
+  .trace { fill: none; stroke: var(--wire-off); stroke-width: 3.5; stroke-linejoin: round; }
+
+  .mb-body { fill: #14202E; stroke: var(--pad-off-stroke); stroke-width: 2; }
+  .mb-eye { fill: var(--text-muted); }
+  .component-label {
+    fill: var(--text-dim);
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+
+  .field-ring {
+    fill: none;
+    stroke: var(--amber);
+    stroke-width: 2;
+  }
+
+  .pad {
+    fill: var(--pad-off-fill);
+    stroke: var(--pad-off-stroke);
+    stroke-width: 2.5;
+    transition: fill 0.35s ease, stroke 0.35s ease;
+    pointer-events: none;
+  }
+  .pad-group.touched .pad { fill: var(--pad-on-fill); stroke: var(--glow); }
+  .field-ring { pointer-events: none; }
+
+  .zone-hit {
+    fill: transparent;
+    pointer-events: all;
+    cursor: pointer;
+  }
+
+  .readout {
+    margin-top: 18px;
+  }
+
+  .readout-label {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    margin-bottom: 6px;
+  }
+  .readout-label .value { color: var(--text-bright); font-weight: 600; }
+
+  .gauge-track {
+    position: relative;
+    width: 100%;
+    height: 14px;
+    background: rgba(159, 182, 204, 0.15);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+  .gauge-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 0%;
+    background: var(--wire-off);
+    border-radius: 7px;
+  }
+  .gauge-fill.touched { background: var(--amber); }
+  .gauge-threshold {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    background: var(--text-bright);
+    opacity: 0.6;
+  }
+  .gauge-threshold-label {
+    position: absolute;
+    top: 18px;
+    transform: translateX(-50%);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-family: ui-monospace, SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    white-space: nowrap;
+  }
+  .gauge-wrap { position: relative; margin-bottom: 26px; }
+
+  .status {
+    color: var(--text-bright);
+    font-size: 0.95rem;
+    font-weight: 500;
+    margin: 0 0 16px;
+  }
+  .status .state-idle { color: var(--text-muted); }
+  .status .state-touched { color: var(--amber); }
+
+  button#touchBtn {
+    background: var(--amber);
+    color: #14202E;
+    border: none;
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  button#touchBtn:active { transform: scale(0.97); }
+  button#touchBtn:focus-visible { outline: 2px solid var(--text-bright); outline-offset: 3px; }
+
+  .try-this {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(159, 182, 204, 0.2);
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+  .try-this strong { color: var(--text-bright); }
+
+  @media (max-width: 420px) {
+    .card { padding: 22px 18px 20px; }
+    h1 { font-size: 1.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <h1>Touch explorer: sensing without a switch</h1>
+  <p class="intro">Move your cursor near the pad below — the outer rings respond as you get close, and touching the center crosses the threshold. Using a keyboard? Tab to the button: focusing it simulates getting close, and holding Enter simulates a full touch.</p>
+
+  <div class="card">
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 600 260" role="img" aria-labelledby="touchTitle">
+        <title id="touchTitle">A capacitive touch pad wired to a micro:bit pin</title>
+
+        <!-- Wire trace from micro:bit to pad -->
+        <path class="trace" d="M170,130 L330,130" />
+
+        <!-- micro:bit icon -->
+        <g>
+          <rect class="mb-body" x="70" y="90" width="100" height="80" rx="8" />
+          <circle class="mb-eye" cx="100" cy="115" r="5" />
+          <circle class="mb-eye" cx="140" cy="115" r="5" />
+          <text class="component-label" x="97" y="150" fill="#9FB6CC">micro:bit</text>
+          <text class="component-label" x="112" y="164">P0</text>
+        </g>
+
+        <!-- Touch pad with field rings -->
+        <g class="pad-group" id="padGroup">
+          <!-- Outer zone: hovering/clicking here raises the reading, but stays below threshold -->
+          <circle class="zone-hit" id="outerHit" cx="430" cy="130" r="72" />
+
+          <circle class="field-ring" id="ring1" cx="430" cy="130" r="36" opacity="0.1" />
+          <circle class="field-ring" id="ring2" cx="430" cy="130" r="48" opacity="0.1" />
+          <circle class="field-ring" id="ring3" cx="430" cy="130" r="60" opacity="0.1" />
+          <circle class="pad" cx="430" cy="130" r="30" />
+
+          <!-- Inner zone: hovering here (with or without a click) crosses the threshold -->
+          <circle class="zone-hit" id="innerHit" cx="430" cy="130" r="30" />
+
+          <text class="component-label" x="405" y="190">Touch pad</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="readout">
+      <div class="readout-label">
+        <span>Capacitance reading</span>
+        <span class="value" id="readingValue">40</span>
+      </div>
+      <div class="gauge-wrap">
+        <div class="gauge-track">
+          <div class="gauge-fill" id="gaugeFill"></div>
+          <div class="gauge-threshold" id="gaugeThreshold" style="left: 47%;"></div>
+        </div>
+        <span class="gauge-threshold-label" style="left: 47%;">touch threshold</span>
+      </div>
+    </div>
+
+    <p class="status" id="statusText" aria-live="polite">
+      <span class="state-idle">Not touched</span> — reading is below the threshold
+    </p>
+
+    <button id="touchBtn" type="button" aria-pressed="false">Tab here, then hold Enter to touch</button>
+
+    <p class="try-this"><strong>Try this:</strong> Move near the pad without touching the center, then touch the center directly. Notice how the reading rises in two stages — getting close only partially raises it, but direct contact pushes it over the threshold. In the real world, capacitance readings also vary by person, material, and environment — why might that matter when you're building a switch meant to work reliably for many different users?</p>
+  </div>
+</div>
+
+<script>
+  const padGroup = document.getElementById('padGroup');
+  const outerHit = document.getElementById('outerHit');
+  const innerHit = document.getElementById('innerHit');
+  const touchBtn = document.getElementById('touchBtn');
+  const readingValue = document.getElementById('readingValue');
+  const gaugeFill = document.getElementById('gaugeFill');
+  const statusText = document.getElementById('statusText');
+  const ring1 = document.getElementById('ring1');
+  const ring2 = document.getElementById('ring2');
+  const ring3 = document.getElementById('ring3');
+
+  const BASE = 40;
+  const PARTIAL = 100;      // near the pad (outer rings) — raised, but stays under THRESHOLD
+  const TOUCH_TARGET = 260; // directly on the pad (center) — crosses THRESHOLD
+  const THRESHOLD = 150;
+  const MAX = 320;
+
+  let value = BASE;
+  let target = BASE;
+  let touched = false;
+  let overOuter = false;
+  let overInner = false;
+
+  function updateTarget() {
+    target = overInner ? TOUCH_TARGET : (overOuter ? PARTIAL : BASE);
+  }
+  function setOuter(active) { overOuter = active; updateTarget(); }
+  function setInner(active) { overInner = active; updateTarget(); }
+
+  function tick() {
+    value += (target - value) * 0.12;
+    if (target === BASE) {
+      value += (Math.random() - 0.5) * 1.2;
+    }
+    value = Math.max(0, Math.min(MAX, value));
+
+    const fraction = value / MAX;
+    const nowTouched = value >= THRESHOLD;
+
+    readingValue.textContent = Math.round(value);
+    gaugeFill.style.width = (fraction * 100).toFixed(1) + '%';
+
+    ring1.setAttribute('opacity', (0.1 + fraction * 0.7).toFixed(2));
+    ring2.setAttribute('opacity', (0.08 + fraction * 0.55).toFixed(2));
+    ring3.setAttribute('opacity', (0.06 + fraction * 0.4).toFixed(2));
+    ring1.setAttribute('r', 36 + fraction * 6);
+    ring2.setAttribute('r', 48 + fraction * 8);
+    ring3.setAttribute('r', 60 + fraction * 10);
+
+    if (nowTouched !== touched) {
+      touched = nowTouched;
+      padGroup.classList.toggle('touched', touched);
+      gaugeFill.classList.toggle('touched', touched);
+      touchBtn.setAttribute('aria-pressed', String(touched));
+      statusText.innerHTML = touched
+        ? '<span class="state-touched">Touched!</span> — reading has crossed the threshold'
+        : '<span class="state-idle">Not touched</span> — reading is below the threshold';
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  // Wires a hover/touch zone: real mouse hover drives it (enter/leave),
+  // while touch or pen (no true hover) drives it via press/release instead.
+  function bindZone(el, setActive) {
+    el.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') setActive(true); });
+    el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') setActive(false); });
+    el.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') { e.preventDefault(); setActive(true); } });
+    el.addEventListener('pointerup', (e) => { if (e.pointerType !== 'mouse') setActive(false); });
+    el.addEventListener('pointercancel', () => setActive(false));
+  }
+
+  bindZone(outerHit, setOuter);
+  bindZone(innerHit, setInner);
+
+  // Button: mouse/touch press-and-hold simulates a full touch (inner zone)
+  touchBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); setInner(true); });
+  touchBtn.addEventListener('pointerup', () => setInner(false));
+  touchBtn.addEventListener('pointerleave', () => setInner(false));
+  touchBtn.addEventListener('pointercancel', () => setInner(false));
+
+  // Button: keyboard focus alone simulates being near the pad (outer zone)
+  touchBtn.addEventListener('focus', () => setOuter(true));
+  touchBtn.addEventListener('blur', () => { setOuter(false); setInner(false); });
+
+  // Button: holding Enter (or Space) while focused simulates a full touch
+  touchBtn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setInner(true); }
+  });
+  touchBtn.addEventListener('keyup', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setInner(false); }
+  });
+
+  requestAnimationFrame(tick);
+</script>
+
+</body>
+</html>
