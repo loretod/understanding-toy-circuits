@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Harbour Street Makerspace – link accessibility demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff; --ink: #1b1f24; --muted: #545d68; --rule: #d9dee3;
+    --brand: #1f3a5f; --accent: #0f6f62; --panel: #eef3f7; --demo: #fff4d6; --demo-ink: #4a3500;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #13171c; --ink: #e8ecf0; --muted: #a7b0ba; --rule: #2e3640;
+      --brand: #9cc3ef; --accent: #5fd1bf; --panel: #1c232b; --demo: #3a2f12; --demo-ink: #ffe7a8;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #13171c; --ink: #e8ecf0; --muted: #a7b0ba; --rule: #2e3640;
+    --brand: #9cc3ef; --accent: #5fd1bf; --panel: #1c232b; --demo: #3a2f12; --demo-ink: #ffe7a8;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+    font-size: 1.0625rem; line-height: 1.55;
+  }
+  a { color: var(--accent); text-underline-offset: 3px; overflow-wrap: anywhere; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+  img, svg { max-width: 100%; }
+
+  .demo-bar {
+    background: var(--demo); color: var(--demo-ink);
+    padding: .75rem 1.25rem; display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: center;
+    font-size: .95rem;
+  }
+  .demo-bar p { margin: 0; flex: 1 1 22rem; }
+  .demo-bar button {
+    font: inherit; font-weight: 700; padding: .45rem .9rem; border-radius: 6px;
+    border: 2px solid currentColor; background: transparent; color: inherit; cursor: pointer;
+  }
+
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 0 1.25rem; }
+  header.site { border-bottom: 1px solid var(--rule); }
+  header.site .wrap { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: 1rem; flex-wrap: wrap; }
+  .logo { display: inline-flex; align-items: center; gap: .6rem; color: var(--brand); text-decoration: none; font-weight: 700; font-size: 1.2rem; }
+  .logo img { width: 40px; height: 40px; }
+  nav ul { list-style: none; margin: 0; padding: 0; display: flex; gap: 1.25rem; flex-wrap: wrap; }
+  nav a { color: var(--ink); text-decoration: none; }
+  nav a:hover { text-decoration: underline; }
+
+  .hero { padding-block: 3rem 2.5rem; }
+  .hero h1 { font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.1; margin: 0 0 1rem; color: var(--brand); max-width: 18ch; }
+  .hero p { max-width: 58ch; margin: 0 0 1.25rem; color: var(--muted); }
+  .actions { display: flex; gap: .75rem; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: .7rem 1.2rem; border-radius: 6px; font-weight: 700; text-decoration: none;
+    background: var(--brand); color: var(--bg);
+  }
+  .btn.alt { background: transparent; color: var(--brand); border: 2px solid var(--brand); }
+
+  section { padding-block: 2rem; border-top: 1px solid var(--rule); }
+  h2 { font-size: 1.5rem; margin: 0 0 1rem; color: var(--brand); }
+  h3 { font-size: 1.15rem; margin: 0 0 .35rem; }
+  .news { display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+  .news article p { margin: 0 0 .5rem; color: var(--muted); }
+  .resources { background: var(--panel); padding: 1.25rem; border-radius: 8px; overflow-x: auto; }
+  .resources ul { margin: 0; padding-left: 1.2rem; }
+  .resources li + li { margin-top: .6rem; }
+
+  footer { border-top: 1px solid var(--rule); padding-block: 2rem; color: var(--muted); font-size: .95rem; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; align-items: center; }
+  .social { display: flex; gap: .75rem; }
+  .social a { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--rule); color: var(--ink); }
+  .social svg { width: 20px; height: 20px; fill: currentColor; }
+  .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<div class="demo-bar" role="region" aria-label="Demo controls">
+  <p id="demo-status">Showing the <strong>inaccessible</strong> version. Links make no sense out of context.</p>
+  <button type="button" id="toggle" aria-pressed="false">Show fixed version</button>
+</div>
+
+<!-- ===================== INACCESSIBLE VERSION ===================== -->
+<div id="bad">
+  <header class="site">
+    <div class="wrap">
+      <!-- Image link with no alt text: screen reader reads the file name -->
+      <a class="logo" href="#">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='8' fill='%231f3a5f'/%3E%3Cpath d='M10 28V12l10 9 10-9v16' stroke='%23fff' stroke-width='3' fill='none'/%3E%3C/svg%3E" width="40" height="40">
+      </a>
+      <nav>
+        <ul>
+          <li><a href="#">Home</a></li>
+          <li><a href="#">Workshops</a></li>
+          <li><a href="#">Visit</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <h1>Build, fix and code things together</h1>
+      <p>Harbour Street Makerspace is a community workshop with 3D printers, a laser cutter, electronics benches and free coding clubs for young people.</p>
+      <p>To book a place at a Saturday coding club, <a href="#">click here</a>. To see the full timetable, <a href="#">click here</a>.</p>
+      <div class="actions">
+        <a class="btn" href="#">Click here</a>
+        <a class="btn alt" href="#">Click here</a>
+      </div>
+    </div>
+
+    <section>
+      <div class="wrap">
+        <h2>News</h2>
+        <div class="news">
+          <article>
+            <h3>New laser cutter arrives</h3>
+            <p>Our second laser cutter is now installed and ready for inducted members.</p>
+            <a href="#">Read more</a>
+          </article>
+          <article>
+            <h3>Micro:bit club returns</h3>
+            <p>The Thursday micro:bit club is back from the summer break.</p>
+            <a href="#">Read more</a>
+          </article>
+          <article>
+            <h3>Repair café in October</h3>
+            <p>Bring a broken lamp, toaster or bike and fix it with a volunteer.</p>
+            <a href="#">Read more</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Resources</h2>
+        <div class="resources">
+          <ul>
+            <li><a href="https://www.harbourstreetmakers.example/downloads/documents/2026/safety/Laser_Cutter_Induction_Guide_v3_FINAL_updated.pdf">https://www.harbourstreetmakers.example/downloads/documents/2026/safety/Laser_Cutter_Induction_Guide_v3_FINAL_updated.pdf</a></li>
+            <li><a href="https://www.harbourstreetmakers.example/index.php?option=com_content&amp;view=article&amp;id=4471&amp;catid=12&amp;Itemid=208&amp;lang=en">https://www.harbourstreetmakers.example/index.php?option=com_content&amp;view=article&amp;id=4471&amp;catid=12&amp;Itemid=208&amp;lang=en</a></li>
+            <li><a href="https://docs.google.example/forms/d/e/1FAIpQLSdX9kq7Tz3bV0pL2mN8rW4yH6cJ1aE5uG/viewform?usp=sf_link">https://docs.google.example/forms/d/e/1FAIpQLSdX9kq7Tz3bV0pL2mN8rW4yH6cJ1aE5uG/viewform?usp=sf_link</a></li>
+          </ul>
+        </div>
+        <p>Want to volunteer? Find out more <a href="#">here</a>. Parents can <a href="#">learn more</a> about our safeguarding policy, and teachers can <a href="#">learn more</a> about school visits.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>© 2026 Harbour Street Makerspace. For our privacy policy <a href="#">click here</a>.</p>
+      <!-- Icon-only links with no accessible name -->
+      <div class="social">
+        <a href="#"><svg viewBox="0 0 24 24"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z"/></svg></a>
+        <a href="#"><svg viewBox="0 0 24 24"><path d="M12 2.2c3.2 0 3.6 0 4.8.1 3.3.1 4.8 1.7 4.9 4.9.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 3.2-1.7 4.8-4.9 4.9-1.3.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-3.3-.1-4.8-1.7-4.9-4.9C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8C2.4 3.9 3.9 2.4 7.2 2.3 8.4 2.2 8.8 2.2 12 2.2zm0 4.9a4.9 4.9 0 1 0 0 9.8 4.9 4.9 0 0 0 0-9.8zm0 8.1a3.2 3.2 0 1 1 0-6.4 3.2 3.2 0 0 1 0 6.4zm5.1-9.4a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg></a>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- ===================== FIXED VERSION ===================== -->
+<div id="good" hidden>
+  <header class="site">
+    <div class="wrap">
+      <a class="logo" href="#">
+        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='8' fill='%231f3a5f'/%3E%3Cpath d='M10 28V12l10 9 10-9v16' stroke='%23fff' stroke-width='3' fill='none'/%3E%3C/svg%3E" width="40" height="40" alt="Harbour Street Makerspace home">
+      </a>
+      <nav aria-label="Main">
+        <ul>
+          <li><a href="#">Home</a></li>
+          <li><a href="#">Workshops</a></li>
+          <li><a href="#">Visit</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <h1>Build, fix and code things together</h1>
+      <p>Harbour Street Makerspace is a community workshop with 3D printers, a laser cutter, electronics benches and free coding clubs for young people.</p>
+      <p>You can <a href="#">book a place at a Saturday coding club</a> or <a href="#">see the full workshop timetable</a>.</p>
+      <div class="actions">
+        <a class="btn" href="#">Book a coding club place</a>
+        <a class="btn alt" href="#">See the timetable</a>
+      </div>
+    </div>
+
+    <section>
+      <div class="wrap">
+        <h2>News</h2>
+        <div class="news">
+          <article>
+            <h3>New laser cutter arrives</h3>
+            <p>Our second laser cutter is now installed and ready for inducted members.</p>
+            <a href="#">Read about the new laser cutter</a>
+          </article>
+          <article>
+            <h3>Micro:bit club returns</h3>
+            <p>The Thursday micro:bit club is back from the summer break.</p>
+            <a href="#">Read about micro:bit club dates</a>
+          </article>
+          <article>
+            <h3>Repair café in October</h3>
+            <p>Bring a broken lamp, toaster or bike and fix it with a volunteer.</p>
+            <a href="#">Read about the repair café</a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Resources</h2>
+        <div class="resources">
+          <ul>
+            <li><a href="https://www.harbourstreetmakers.example/downloads/documents/2026/safety/Laser_Cutter_Induction_Guide_v3_FINAL_updated.pdf">Laser cutter induction guide (PDF, 1.2 MB)</a></li>
+            <li><a href="https://www.harbourstreetmakers.example/index.php?option=com_content&amp;view=article&amp;id=4471&amp;catid=12&amp;Itemid=208&amp;lang=en">Opening hours and how to find us</a></li>
+            <li><a href="https://docs.google.example/forms/d/e/1FAIpQLSdX9kq7Tz3bV0pL2mN8rW4yH6cJ1aE5uG/viewform?usp=sf_link">Membership sign-up form</a></li>
+          </ul>
+        </div>
+        <p>You can <a href="#">find out about volunteering</a>. Parents can read our <a href="#">safeguarding policy</a>, and teachers can learn about <a href="#">school visits to the makerspace</a>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>© 2026 Harbour Street Makerspace. Read our <a href="#">privacy policy</a>.</p>
+      <div class="social">
+        <a href="#"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.8-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z"/></svg><span class="vh">Harbour Street Makerspace on Facebook</span></a>
+        <a href="#"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.2c3.2 0 3.6 0 4.8.1 3.3.1 4.8 1.7 4.9 4.9.1 1.3.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 3.2-1.7 4.8-4.9 4.9-1.3.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-3.3-.1-4.8-1.7-4.9-4.9C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8C2.4 3.9 3.9 2.4 7.2 2.3 8.4 2.2 8.8 2.2 12 2.2zm0 4.9a4.9 4.9 0 1 0 0 9.8 4.9 4.9 0 0 0 0-9.8zm0 8.1a3.2 3.2 0 1 1 0-6.4 3.2 3.2 0 0 1 0 6.4zm5.1-9.4a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg><span class="vh">Harbour Street Makerspace on Instagram</span></a>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<script>
+  // Stop demo links from navigating away during the recording
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('#bad a, #good a');
+    if (a) e.preventDefault();
+  });
+
+  var btn = document.getElementById('toggle');
+  var bad = document.getElementById('bad');
+  var good = document.getElementById('good');
+  var status = document.getElementById('demo-status');
+  btn.addEventListener('click', function () {
+    var showFixed = btn.getAttribute('aria-pressed') !== 'true';
+    btn.setAttribute('aria-pressed', String(showFixed));
+    bad.hidden = showFixed;
+    good.hidden = !showFixed;
+    btn.textContent = showFixed ? 'Show inaccessible version' : 'Show fixed version';
+    status.innerHTML = showFixed
+      ? 'Showing the <strong>fixed</strong> version. Every link says where it goes.'
+      : 'Showing the <strong>inaccessible</strong> version. Links make no sense out of context.';
+  });
+</script>
+</body>
+</html>
