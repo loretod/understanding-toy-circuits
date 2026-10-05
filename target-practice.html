@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tilt mouse target test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #102A43;
+    --field: #DCEAF2;
+    --panel: #FFFFFF;
+    --target: #1F6FB2;
+    --done: #2E7D4F;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex;
+    flex-direction: column;
+    background: var(--field);
+    color: var(--ink);
+    font-family: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 1.25rem;
+    background: var(--panel);
+    border-bottom: 3px solid var(--target);
+  }
+  #message { margin: 0; flex: 1 1 18rem; font-size: 1.15rem; line-height: 1.4; max-width: 46ch; }
+  .stats { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem 1.5rem; white-space: nowrap; }
+  .stat { display: flex; flex-direction: column; line-height: 1.1; }
+  .stat span { font-size: 0.9rem; }
+  .stat strong { font-size: 2rem; font-variant-numeric: tabular-nums; }
+  #again {
+    font: inherit;
+    font-size: 1.15rem;
+    font-weight: 700;
+    padding: 0.6rem 1.2rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--target);
+    color: #fff;
+    cursor: pointer;
+  }
+  #again:hover { background: #185a91; }
+  #again:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  /* Keep the button's space so the bar doesn't jump when it appears */
+  #again[hidden] { display: inline-block; visibility: hidden; }
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1.05rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle input {
+    appearance: none;
+    position: relative;
+    width: 3.2rem;
+    height: 1.8rem;
+    margin: 0;
+    border-radius: 999px;
+    background: #8A9BAD;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .toggle input::after {
+    content: "";
+    position: absolute;
+    top: 0.2rem;
+    left: 0.2rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 0.15s;
+  }
+  .toggle input:checked { background: var(--target); }
+  .toggle input:checked::after { transform: translateX(1.4rem); }
+  .toggle input:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) { .toggle input::after { transition: none; } }
+  main { flex: 1; position: relative; min-height: 0; }
+  #game { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+<header>
+  <p id="message" aria-live="polite"></p>
+  <div class="stats">
+    <label class="toggle"><input type="checkbox" id="clickToggle" role="switch"> Click to hit</label>
+    <div class="stat"><span>Time</span><strong id="time">0.0 s</strong></div>
+    <div class="stat"><span>Targets</span><strong id="count">0 / 9</strong></div>
+    <button id="again" type="button" hidden>Play again</button>
+  </div>
+</header>
+<main><canvas id="game" aria-label="Nine circular targets arranged in three rows"></canvas></main>
+
+<script src="https://cdn.jsdelivr.net/npm/kaplay@3001.0.19/dist/kaplay.js"></script>
+<script>
+// ---- Settings ----
+// "Click to hit" can be switched on in the top bar. To start with it on,
+// add ?mode=click to the page address.
+let CLICK_MODE = new URLSearchParams(location.search).get("mode") === "click";
+
+const COLORS = {
+  field: [220, 234, 242],
+  target: [31, 111, 178],
+  done: [46, 125, 79],
+  white: [255, 255, 255],
+};
+
+const k = kaplay({
+  canvas: document.getElementById("game"),
+  background: COLORS.field,
+  global: false,
+  crisp: true,
+});
+
+const messageEl = document.getElementById("message");
+const timeEl = document.getElementById("time");
+const countEl = document.getElementById("count");
+const againBtn = document.getElementById("again");
+
+const clickToggle = document.getElementById("clickToggle");
+clickToggle.checked = CLICK_MODE;
+
+function startText() {
+  return CLICK_MODE
+    ? "Move the cursor onto each circle and click it. The timer starts on your first target."
+    : "Move the cursor onto each circle. The timer starts when you touch the first one.";
+}
+
+let startTime = null;
+let finished = false;
+let hits = 0;
+let best = null;
+
+// Positions as fractions of the play area: three rows (top, center, bottom)
+const SPOTS = [];
+for (const y of [0.17, 0.5, 0.83]) {
+  for (const x of [0.15, 0.5, 0.85]) SPOTS.push([x, y]);
+}
+
+function radius() {
+  return Math.min(k.width(), k.height()) * 0.08;
+}
+
+const targets = SPOTS.map(([fx, fy]) => {
+  const t = k.add([
+    k.pos(0, 0),
+    k.circle(40),
+    k.anchor("center"),
+    k.color(...COLORS.target),
+    k.area(),
+    k.scale(1),
+    { fx, fy, hit: false, armed: true },
+  ]);
+
+  // White ring for unhit targets, a check mark for hit ones
+  t.onDraw(() => {
+    const r = t.radius;
+    if (!t.hit) {
+      k.drawCircle({ pos: k.vec2(0, 0), radius: r * 0.55, color: k.rgb(...COLORS.white) });
+      k.drawCircle({ pos: k.vec2(0, 0), radius: r * 0.3, color: k.rgb(...COLORS.target) });
+    } else {
+      k.drawLines({
+        pts: [k.vec2(-r * 0.4, 0), k.vec2(-r * 0.1, r * 0.3), k.vec2(r * 0.45, -r * 0.3)],
+        width: r * 0.16,
+        color: k.rgb(...COLORS.white),
+        join: "round",
+        cap: "round",
+      });
+    }
+  });
+
+  return t;
+});
+
+// Place targets for the current size of the window or iframe
+function layout() {
+  targets.forEach((t) => {
+    t.pos = k.vec2(t.fx * k.width(), t.fy * k.height());
+    t.radius = radius();
+  });
+}
+
+function hitTarget(t) {
+  if (t.hit || finished) return;
+  if (startTime === null) startTime = performance.now();
+  t.hit = true;
+  t.color = k.rgb(...COLORS.done);
+  hits++;
+  countEl.textContent = hits + " / 9";
+
+  if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    t.scale = k.vec2(1.25);
+    k.tween(1.25, 1, 0.2, (s) => (t.scale = k.vec2(s)), k.easings.easeOutQuad);
+  }
+
+  if (hits === targets.length) finish();
+}
+
+function finish() {
+  finished = true;
+  const total = (performance.now() - startTime) / 1000;
+  timeEl.textContent = total.toFixed(1) + " s";
+  const isBest = best === null || total < best;
+  if (isBest) best = total;
+  messageEl.textContent =
+    "Done! All 9 targets in " + total.toFixed(1) + " seconds." +
+    (isBest ? "" : " Your best so far is " + best.toFixed(1) + " seconds.");
+  againBtn.hidden = false;
+}
+
+function reset() {
+  startTime = null;
+  finished = false;
+  hits = 0;
+  targets.forEach((t) => {
+    t.hit = false;
+    // A target the cursor is already resting on won't count until the cursor leaves it
+    t.armed = !t.isHovering();
+    t.color = k.rgb(...COLORS.target);
+    t.scale = k.vec2(1);
+  });
+  timeEl.textContent = "0.0 s";
+  countEl.textContent = "0 / 9";
+  messageEl.textContent = startText();
+  againBtn.hidden = true;
+}
+
+// Ignore the cursor until it has actually moved over the page
+let cursorReady = false;
+k.onMouseMove(() => (cursorReady = true));
+
+// Touch mode: a target counts as soon as the cursor is over it
+k.onUpdate(() => {
+  layout();
+  if (!cursorReady) return;
+  targets.forEach((t) => {
+    if (!t.isHovering()) t.armed = true;
+    else if (!CLICK_MODE && t.armed) hitTarget(t);
+  });
+  if (startTime !== null && !finished) {
+    timeEl.textContent = ((performance.now() - startTime) / 1000).toFixed(1) + " s";
+  }
+  k.setCursor(targets.some((t) => !t.hit && t.isHovering()) ? "pointer" : "default");
+});
+
+// Click mode: a target counts when clicked
+k.onMousePress(() => {
+  if (CLICK_MODE) targets.forEach((t) => { if (t.isHovering()) hitTarget(t); });
+});
+
+againBtn.addEventListener("click", reset);
+
+// Switching modes starts a fresh round, and best times are kept separately
+const bestTimes = { touch: null, click: null };
+clickToggle.addEventListener("change", () => {
+  bestTimes[CLICK_MODE ? "click" : "touch"] = best;
+  CLICK_MODE = clickToggle.checked;
+  best = bestTimes[CLICK_MODE ? "click" : "touch"];
+  reset();
+});
+layout();
+reset();
+</script>
+</body>
+</html>
