@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Joystick explorer: X and Y readings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #EEF2F5;
+    --panel: #FFFFFF;
+    --ink: #1C2430;
+    --muted: #55606E;
+    --line: #C9D2DB;
+    --pcb: #1F4E79;
+    --pcb-edge: #163A5B;
+    --well: #2C5F8E;
+    --cap: #2B2F33;
+    --cap-ridge: #4A5058;
+    --x: #A34F00;
+    --y: #1F6B4A;
+    --press: #7A2E8E;
+    --focus: #0B5FD7;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151A21;
+      --panel: #1E252E;
+      --ink: #E8EDF2;
+      --muted: #A7B1BD;
+      --line: #36414D;
+      --pcb: #2A6496;
+      --pcb-edge: #1C4A72;
+      --well: #3874A8;
+      --cap: #101317;
+      --cap-ridge: #3A4048;
+      --x: #F0A355;
+      --y: #5CC79A;
+      --press: #C58BE0;
+      --focus: #7FB2FF;
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 17px;
+    line-height: 1.45;
+  }
+
+  .explorer {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 20px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 680px) {
+    .explorer { grid-template-columns: 1fr; padding: 14px; gap: 16px; }
+  }
+
+  h1 {
+    grid-column: 1 / -1;
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+  .lede { grid-column: 1 / -1; margin: -14px 0 0; color: var(--muted); max-width: 62ch; }
+  @media (max-width: 680px) { .lede { margin-top: -8px; } }
+
+  /* Joystick stage */
+  .stage {
+    position: relative;
+    width: 100%;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    cursor: grab;
+    border-radius: 14px;
+    outline: none;
+  }
+  .stage.dragging { cursor: grabbing; }
+  .stage:focus-visible { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--focus); }
+  .stage svg { display: block; width: 100%; height: auto; }
+
+  .axis { stroke: var(--muted); stroke-width: 2; }
+  .tick { stroke: var(--muted); stroke-width: 2; }
+  .tick-label { fill: var(--muted); font-size: 14px; font-family: inherit; }
+  .axis-title { font-size: 17px; font-weight: 700; font-family: inherit; }
+  .axis-title.x { fill: var(--x); }
+  .axis-title.y { fill: var(--y); }
+  .guide-x { stroke: var(--x); stroke-width: 2; stroke-dasharray: 5 5; }
+  .guide-y { stroke: var(--y); stroke-width: 2; stroke-dasharray: 5 5; }
+  .dot-x { fill: var(--x); }
+  .dot-y { fill: var(--y); }
+
+  .hint { margin: 10px 0 0; font-size: 0.92rem; color: var(--muted); }
+  kbd {
+    font-family: inherit;
+    font-size: 0.85em;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 0 5px;
+    background: var(--panel);
+    color: var(--ink);
+  }
+
+  /* Readings */
+  .readings {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  .reading + .reading { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .r-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .r-name { font-weight: 700; }
+  .reading.x .r-name { color: var(--x); }
+  .reading.y .r-name { color: var(--y); }
+  .r-dir { color: var(--muted); font-size: 0.9rem; }
+  .r-value {
+    display: block;
+    font-size: 2.6rem;
+    line-height: 1.1;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin: 4px 0 8px;
+  }
+  .track {
+    position: relative;
+    height: 12px;
+    border-radius: 6px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .fill { position: absolute; inset: 0 auto 0 0; width: 50%; }
+  .reading.x .fill { background: var(--x); }
+  .reading.y .fill { background: var(--y); }
+  .mid { position: absolute; top: -1px; bottom: -1px; left: 50%; width: 2px; margin-left: -1px; background: var(--ink); opacity: 0.55; }
+  .scale { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+  .sw-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .sw-state { font-size: 1.4rem; font-weight: 700; }
+  .sw-state.on { color: var(--press); }
+  .sw-digital { color: var(--muted); font-size: 0.95rem; }
+  .sw-digital b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .sw-note { margin: 6px 0 0; font-size: 0.9rem; color: var(--muted); }
+
+  .describe {
+    margin: 16px 0 0;
+    padding: 10px 12px;
+    border-left: 4px solid var(--pcb);
+    background: var(--bg);
+    border-radius: 0 6px 6px 0;
+    font-weight: 700;
+  }
+
+  /* Controls */
+  .controls { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  button {
+    font: inherit;
+    font-weight: 700;
+    padding: 10px 16px;
+    min-height: 44px;
+    border-radius: 8px;
+    border: 2px solid var(--pcb);
+    background: var(--panel);
+    color: var(--ink);
+    cursor: pointer;
+    touch-action: none;
+  }
+  button.primary { background: var(--pcb); color: #FFFFFF; }
+  button.primary[aria-pressed="true"] { background: var(--press); border-color: var(--press); }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  label.check { display: flex; gap: 10px; align-items: center; cursor: pointer; }
+  label.check input { width: 22px; height: 22px; accent-color: var(--pcb); }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+</style>
+</head>
+<body>
+<main class="explorer">
+  <h1>Explore the joystick’s X and Y readings</h1>
+  <p class="lede">Drag the joystick and watch the numbers change. Left and right changes X. Up and down changes Y. When you let go, both settle back near the middle.</p>
+
+  <div>
+    <div class="stage" id="stage" tabindex="0" role="application"
+         aria-roledescription="joystick"
+         aria-label="Joystick. Use the arrow keys to move it, Space to press it down, and Home to return it to the center."
+         aria-describedby="description">
+      <svg viewBox="0 0 460 440" aria-hidden="true" focusable="false">
+        <!-- Module board -->
+        <rect x="80" y="30" width="350" height="350" rx="18" fill="var(--pcb)" stroke="var(--pcb-edge)" stroke-width="3"/>
+        <circle cx="102" cy="52" r="7" fill="var(--bg)"/>
+        <circle cx="408" cy="52" r="7" fill="var(--bg)"/>
+        <circle cx="102" cy="358" r="7" fill="var(--bg)"/>
+        <circle cx="408" cy="358" r="7" fill="var(--bg)"/>
+        <!-- Movement area -->
+        <circle cx="255" cy="205" r="150" fill="var(--well)" stroke="var(--pcb-edge)" stroke-width="3"/>
+        <line x1="105" y1="205" x2="405" y2="205" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="2"/>
+        <line x1="255" y1="55" x2="255" y2="355" stroke="#FFFFFF" stroke-opacity="0.35" stroke-width="2"/>
+        <circle cx="255" cy="205" r="75" fill="none" stroke="#FFFFFF" stroke-opacity="0.2" stroke-width="2"/>
+
+        <!-- X axis (bottom) -->
+        <line class="axis" x1="105" y1="400" x2="405" y2="400"/>
+        <line class="tick" x1="105" y1="394" x2="105" y2="406"/>
+        <line class="tick" x1="255" y1="394" x2="255" y2="406"/>
+        <line class="tick" x1="405" y1="394" x2="405" y2="406"/>
+        <text class="tick-label" x="105" y="426" text-anchor="middle">0</text>
+        <text class="tick-label" x="255" y="426" text-anchor="middle">512</text>
+        <text class="tick-label" x="405" y="426" text-anchor="middle">1023</text>
+        <text class="axis-title x" x="440" y="406" text-anchor="middle">X</text>
+
+        <!-- Y axis (left) -->
+        <line class="axis" x1="60" y1="55" x2="60" y2="355"/>
+        <line class="tick" x1="54" y1="55" x2="66" y2="55"/>
+        <line class="tick" x1="54" y1="205" x2="66" y2="205"/>
+        <line class="tick" x1="54" y1="355" x2="66" y2="355"/>
+        <text class="tick-label" x="48" y="60" text-anchor="end">1023</text>
+        <text class="tick-label" x="48" y="210" text-anchor="end">512</text>
+        <text class="tick-label" x="48" y="360" text-anchor="end">0</text>
+        <text class="axis-title y" x="60" y="34" text-anchor="middle">Y</text>
+
+        <!-- Guides from knob to each axis -->
+        <line id="guideX" class="guide-x" x1="255" y1="205" x2="255" y2="400"/>
+        <line id="guideY" class="guide-y" x1="255" y1="205" x2="60" y2="205"/>
+        <circle id="dotX" class="dot-x" cx="255" cy="400" r="7"/>
+        <circle id="dotY" class="dot-y" cx="60" cy="205" r="7"/>
+
+        <!-- Knob -->
+        <g id="knob" transform="translate(255 205)">
+          <circle r="36" fill="#000" opacity="0.25" cy="4"/>
+          <circle id="capRing" r="34" fill="var(--cap)" stroke="var(--cap-ridge)" stroke-width="4"/>
+          <circle r="24" fill="none" stroke="var(--cap-ridge)" stroke-width="2" stroke-dasharray="3 4"/>
+          <circle r="10" fill="var(--cap-ridge)"/>
+        </g>
+      </svg>
+    </div>
+    <p class="hint">Keyboard: <kbd>arrow keys</kbd> move, <kbd>Shift</kbd> + arrows for small steps, <kbd>Space</kbd> presses down, <kbd>Home</kbd> returns to center.</p>
+  </div>
+
+  <div>
+    <section class="readings" aria-label="Joystick readings">
+      <div class="reading x">
+        <div class="r-head"><span class="r-name">X reading</span><span class="r-dir">left and right</span></div>
+        <span class="r-value" id="xVal">512</span>
+        <div class="track" aria-hidden="true"><div class="fill" id="xFill"></div><span class="mid"></span></div>
+        <div class="scale" aria-hidden="true"><span>0 left</span><span>512</span><span>1023 right</span></div>
+      </div>
+
+      <div class="reading y">
+        <div class="r-head"><span class="r-name">Y reading</span><span class="r-dir">down and up</span></div>
+        <span class="r-value" id="yVal">512</span>
+        <div class="track" aria-hidden="true"><div class="fill" id="yFill"></div><span class="mid"></span></div>
+        <div class="scale" aria-hidden="true"><span>0 down</span><span>512</span><span>1023 up</span></div>
+      </div>
+
+      <div class="reading sw">
+        <div class="sw-row">
+          <span class="r-name">Button</span>
+          <span class="sw-digital">digital reading <b id="swVal">1</b></span>
+        </div>
+        <span class="sw-state" id="swState">Not pressed</span>
+        <p class="sw-note">Pressed reads 0 and not pressed reads 1. It surprises almost everyone the first time.</p>
+      </div>
+
+      <p class="describe" id="description">Resting in the middle.</p>
+    </section>
+
+    <div class="controls">
+      <div class="btn-row">
+        <button type="button" class="primary" id="pressBtn" aria-pressed="false">Hold to press down</button>
+        <button type="button" id="centerBtn">Return to center</button>
+      </div>
+      <label class="check"><input type="checkbox" id="spring" checked> Spring back to center when I let go</label>
+    </div>
+  </div>
+
+  <div class="sr-only" aria-live="polite" id="live"></div>
+</main>
+
+<script>
+(function () {
+  // Change to true if your joystick reads lower numbers when pushed up.
+  var FLIP_Y = false;
+
+  var CX = 255, CY = 205, R = 150;
+  var AXIS_X_Y = 400, AXIS_Y_X = 60;
+
+  var stage = document.getElementById('stage');
+  var svg = stage.querySelector('svg');
+  var knob = document.getElementById('knob');
+  var capRing = document.getElementById('capRing');
+  var guideX = document.getElementById('guideX');
+  var guideY = document.getElementById('guideY');
+  var dotX = document.getElementById('dotX');
+  var dotY = document.getElementById('dotY');
+  var xVal = document.getElementById('xVal');
+  var yVal = document.getElementById('yVal');
+  var xFill = document.getElementById('xFill');
+  var yFill = document.getElementById('yFill');
+  var swVal = document.getElementById('swVal');
+  var swState = document.getElementById('swState');
+  var description = document.getElementById('description');
+  var pressBtn = document.getElementById('pressBtn');
+  var centerBtn = document.getElementById('centerBtn');
+  var spring = document.getElementById('spring');
+  var live = document.getElementById('live');
+
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var pos = { x: 0, y: 0 }; // -1..1, y positive is up
+  var pressed = false;
+  var dragging = false;
+  var anim = null;
+  var announceTimer = null;
+
+  function clampToCircle(x, y) {
+    var len = Math.hypot(x, y);
+    if (len > 1) { x /= len; y /= len; }
+    return { x: x, y: y };
+  }
+
+  function toReading(v) {
+    return Math.round((v + 1) / 2 * 1023);
+  }
+
+  function readings() {
+    var x = toReading(pos.x);
+    var y = toReading(FLIP_Y ? -pos.y : pos.y);
+    return { x: x, y: y };
+  }
+
+  function describe() {
+    var ax = Math.abs(pos.x), ay = Math.abs(pos.y);
+    var mag = Math.hypot(pos.x, pos.y);
+    if (mag < 0.12) return 'Resting in the middle.';
+    var vert = ay >= 0.12 ? (pos.y > 0 ? 'up' : 'down') : '';
+    var horiz = ax >= 0.12 ? (pos.x > 0 ? 'right' : 'left') : '';
+    var dir;
+    if (vert && horiz) dir = vert + ' and to the ' + horiz;
+    else if (vert) dir = vert;
+    else dir = 'to the ' + horiz;
+    var amount = mag > 0.95 ? ' all the way' : (mag < 0.5 ? ' a little' : '');
+    return 'Pushed ' + dir + amount + '.';
+  }
+
+  function render() {
+    var px = CX + pos.x * R;
+    var py = CY - pos.y * R;
+    knob.setAttribute('transform', 'translate(' + px.toFixed(1) + ' ' + py.toFixed(1) + ')' + (pressed ? ' scale(0.9)' : ''));
+    capRing.setAttribute('stroke', pressed ? 'var(--press)' : 'var(--cap-ridge)');
+
+    guideX.setAttribute('x1', px); guideX.setAttribute('y1', py);
+    guideX.setAttribute('x2', px); guideX.setAttribute('y2', AXIS_X_Y);
+    guideY.setAttribute('x1', px); guideY.setAttribute('y1', py);
+    guideY.setAttribute('x2', AXIS_Y_X); guideY.setAttribute('y2', py);
+    dotX.setAttribute('cx', px);
+    dotY.setAttribute('cy', py);
+
+    var r = readings();
+    xVal.textContent = r.x;
+    yVal.textContent = r.y;
+    xFill.style.width = (r.x / 1023 * 100) + '%';
+    yFill.style.width = (r.y / 1023 * 100) + '%';
+
+    swVal.textContent = pressed ? '0' : '1';
+    swState.textContent = pressed ? 'Pressed' : 'Not pressed';
+    swState.classList.toggle('on', pressed);
+    pressBtn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+
+    description.textContent = describe();
+  }
+
+  function announce() {
+    clearTimeout(announceTimer);
+    announceTimer = setTimeout(function () {
+      var r = readings();
+      live.textContent = 'X ' + r.x + ', Y ' + r.y + '. ' + describe() + ' Button ' + (pressed ? 'pressed.' : 'not pressed.');
+    }, 300);
+  }
+
+  function setPos(x, y) {
+    stopAnim();
+    pos = clampToCircle(x, y);
+    render();
+  }
+
+  function stopAnim() {
+    if (anim) { cancelAnimationFrame(anim); anim = null; }
+  }
+
+  function returnToCenter(animate) {
+    stopAnim();
+    if (!animate || reduceMotion) { pos = { x: 0, y: 0 }; render(); announce(); return; }
+    var start = { x: pos.x, y: pos.y };
+    var t0 = null, dur = 260;
+    function step(ts) {
+      if (t0 === null) t0 = ts;
+      var t = Math.min(1, (ts - t0) / dur);
+      var e = 1 - Math.pow(1 - t, 3);
+      pos = { x: start.x * (1 - e), y: start.y * (1 - e) };
+      render();
+      if (t < 1) anim = requestAnimationFrame(step);
+      else { anim = null; pos = { x: 0, y: 0 }; render(); announce(); }
+    }
+    anim = requestAnimationFrame(step);
+  }
+
+  function pointFromEvent(evt) {
+    var pt = svg.createSVGPoint();
+    pt.x = evt.clientX; pt.y = evt.clientY;
+    var p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    return { x: (p.x - CX) / R, y: -(p.y - CY) / R };
+  }
+
+  // Pointer: drag anywhere on the joystick
+  stage.addEventListener('pointerdown', function (evt) {
+    if (evt.button !== undefined && evt.button !== 0) return;
+    dragging = true;
+    stage.classList.add('dragging');
+    stage.setPointerCapture(evt.pointerId);
+    var p = pointFromEvent(evt);
+    setPos(p.x, p.y);
+    evt.preventDefault();
+  });
+  stage.addEventListener('pointermove', function (evt) {
+    if (!dragging) return;
+    var p = pointFromEvent(evt);
+    setPos(p.x, p.y);
+  });
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    stage.classList.remove('dragging');
+    if (spring.checked) returnToCenter(true);
+    else announce();
+  }
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
+  stage.addEventListener('lostpointercapture', endDrag);
+
+  // Keyboard on the joystick
+  stage.addEventListener('keydown', function (evt) {
+    var step = evt.shiftKey ? 0.02 : 0.1;
+    var handled = true;
+    switch (evt.key) {
+      case 'ArrowLeft': setPos(pos.x - step, pos.y); break;
+      case 'ArrowRight': setPos(pos.x + step, pos.y); break;
+      case 'ArrowUp': setPos(pos.x, pos.y + step); break;
+      case 'ArrowDown': setPos(pos.x, pos.y - step); break;
+      case 'Home': returnToCenter(false); break;
+      case ' ':
+      case 'Enter':
+        if (!evt.repeat) { pressed = true; render(); }
+        break;
+      default: handled = false;
+    }
+    if (handled) { evt.preventDefault(); if (evt.key !== 'Home') announce(); }
+  });
+  stage.addEventListener('keyup', function (evt) {
+    if (evt.key === ' ' || evt.key === 'Enter') {
+      pressed = false; render(); announce(); evt.preventDefault();
+    }
+  });
+  stage.addEventListener('blur', function () {
+    if (pressed && !pressBtnHeld) { pressed = false; render(); }
+  });
+
+  // Hold-to-press button
+  var pressBtnHeld = false;
+  function pressStart(evt) {
+    if (evt) evt.preventDefault();
+    pressBtnHeld = true; pressed = true; render(); announce();
+  }
+  function pressEnd() {
+    if (!pressBtnHeld) return;
+    pressBtnHeld = false; pressed = false; render(); announce();
+  }
+  pressBtn.addEventListener('pointerdown', function (evt) {
+    pressBtn.setPointerCapture(evt.pointerId);
+    pressStart(evt);
+  });
+  pressBtn.addEventListener('pointerup', pressEnd);
+  pressBtn.addEventListener('pointercancel', pressEnd);
+  pressBtn.addEventListener('lostpointercapture', pressEnd);
+  pressBtn.addEventListener('keydown', function (evt) {
+    if ((evt.key === ' ' || evt.key === 'Enter') && !evt.repeat) pressStart(evt);
+  });
+  pressBtn.addEventListener('keyup', function (evt) {
+    if (evt.key === ' ' || evt.key === 'Enter') { evt.preventDefault(); pressEnd(); }
+  });
+  pressBtn.addEventListener('blur', pressEnd);
+  pressBtn.addEventListener('click', function (evt) { evt.preventDefault(); });
+
+  centerBtn.addEventListener('click', function () { returnToCenter(true); });
+
+  render();
+})();
+</script>
+</body>
+</html>
