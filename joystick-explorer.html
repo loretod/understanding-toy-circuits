@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Joystick explorer: X and Y readings</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🕹️</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
@@ -67,15 +68,6 @@
   @media (max-width: 680px) {
     .explorer { grid-template-columns: 1fr; padding: 14px; gap: 16px; }
   }
-
-  h1 {
-    grid-column: 1 / -1;
-    margin: 0;
-    font-size: 1.35rem;
-    font-weight: 700;
-  }
-  .lede { grid-column: 1 / -1; margin: -14px 0 0; color: var(--muted); max-width: 62ch; }
-  @media (max-width: 680px) { .lede { margin-top: -8px; } }
 
   /* Joystick stage */
   .stage {
@@ -195,13 +187,10 @@
 </head>
 <body>
 <main class="explorer">
-  <h1>Explore the joystick’s X and Y readings</h1>
-  <p class="lede">Drag the joystick and watch the numbers change. Left and right changes X. Up and down changes Y. When you let go, both settle back near the middle.</p>
-
   <div>
     <div class="stage" id="stage" tabindex="0" role="application"
          aria-roledescription="joystick"
-         aria-label="Joystick. Use the arrow keys to move it, Space to press it down, and Home to return it to the center."
+         aria-label="Joystick. Use the arrow keys to move it, Space to press it down, and Enter to return it to the center."
          aria-describedby="description">
       <svg viewBox="0 0 460 440" aria-hidden="true" focusable="false">
         <!-- Module board -->
@@ -251,7 +240,7 @@
         </g>
       </svg>
     </div>
-    <p class="hint">Keyboard: <kbd>arrow keys</kbd> move, <kbd>Shift</kbd> + arrows for small steps, <kbd>Space</kbd> presses down, <kbd>Home</kbd> returns to center.</p>
+    <p class="hint">Keyboard: <kbd>arrow keys</kbd> move, <kbd>Shift</kbd> + arrows for small steps, <kbd>Space</kbd> presses down, <kbd>Enter</kbd> returns to center.</p>
   </div>
 
   <div>
@@ -435,6 +424,7 @@
     dragging = true;
     stage.classList.add('dragging');
     stage.setPointerCapture(evt.pointerId);
+    stage.focus({ preventScroll: true });
     var p = pointFromEvent(evt);
     setPos(p.x, p.y);
     evt.preventDefault();
@@ -464,17 +454,16 @@
       case 'ArrowRight': setPos(pos.x + step, pos.y); break;
       case 'ArrowUp': setPos(pos.x, pos.y + step); break;
       case 'ArrowDown': setPos(pos.x, pos.y - step); break;
-      case 'Home': returnToCenter(false); break;
+      case 'Enter': returnToCenter(false); break;
       case ' ':
-      case 'Enter':
         if (!evt.repeat) { pressed = true; render(); }
         break;
       default: handled = false;
     }
-    if (handled) { evt.preventDefault(); if (evt.key !== 'Home') announce(); }
+    if (handled) { evt.preventDefault(); if (evt.key !== 'Enter') announce(); }
   });
   stage.addEventListener('keyup', function (evt) {
-    if (evt.key === ' ' || evt.key === 'Enter') {
+    if (evt.key === ' ') {
       pressed = false; render(); announce(); evt.preventDefault();
     }
   });
@@ -511,6 +500,13 @@
   centerBtn.addEventListener('click', function () { returnToCenter(true); });
 
   render();
+
+  // Put keyboard focus on the joystick as soon as the page loads.
+  function focusJoystick() {
+    try { stage.focus({ preventScroll: true }); } catch (e) { stage.focus(); }
+  }
+  if (document.readyState === 'complete') focusJoystick();
+  else window.addEventListener('load', focusJoystick);
 })();
 </script>
 </body>
